@@ -1,0 +1,318 @@
+<!--
+  Kidde Smoke Detectors settings page.
+
+  Every option lives in the standard Homebridge settings form, generated
+  from config.schema.json and shown below this panel. This panel helps fill
+  it in: it checks that the Kidde email and password work, and lists the
+  smoke alarms with a Show in HomeKit switch and an editable HomeKit name.
+  Those two controls write into the same standard "Device Settings" entries
+  the form shows (devices[].name and devices[].hidden), so the form and the
+  list always agree, and nothing is saved until the user clicks Save.
+
+  Styling uses Bootstrap 5 classes, which the Homebridge UI injects and
+  themes (light and dark) automatically.
+-->
+<style>
+  .kidde-id { font-family: var(--bs-font-monospace); user-select: all; }
+  .kidde-table td, .kidde-table th { vertical-align: middle; }
+  .kidde-table .form-switch { min-height: 0; }
+  .kidde-name-input { min-width: 11rem; }
+</style>
+
+<div class="card card-body mb-3">
+  <h5 class="card-title mb-1">Your Smoke Alarms</h5>
+  <p class="text-muted small mb-2">
+    Enter your Kidde email and password in the form below, then use
+    <strong>Sign In &amp; Find Alarms</strong>. Choose which alarms to show in HomeKit and what
+    to call them, then click <strong>Save</strong> and restart Homebridge.
+  </p>
+
+  <div id="status" class="small mb-2" role="status"></div>
+  <div id="alarmList"></div>
+  <div id="locationList" class="small text-muted mt-1"></div>
+
+  <div class="d-flex flex-wrap gap-2 mt-2">
+    <button type="button" id="scanButton" class="btn btn-primary btn-sm">Sign In &amp; Find Alarms</button>
+    <button type="button" id="refreshButton" class="btn btn-secondary btn-sm">Refresh List</button>
+  </div>
+</div>
+
+<script>
+  (async () => {
+    const PLATFORM = 'KiddeSmokeDetectors';
+    const MAX_NAME_LENGTH = 55;
+
+    /** Every config block for this plugin (singular, so normally one) */
+    let blocks = [];
+    /** The plugin block as currently shown in the form (unsaved edits included) */
+    let config = {};
+    /** The last alarm list shown */
+    let listing = { devices: [], locations: [], updatedAt: 0 };
+
+    const statusEl = document.getElementById('status');
+    const alarmListEl = document.getElementById('alarmList');
+    const locationListEl = document.getElementById('locationList');
+
+    // Names and ids come from the Kidde account; never interpolate them unescaped
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function setStatus(message, tone) {
+      statusEl.className = 'small mb-2' + (tone ? ' text-' + tone : '');
+      statusEl.textContent = message || '';
+    }
+
+    function setBlocks(next) {
+      blocks = Array.isArray(next) ? next : (next && typeof next === 'object' ? [next] : []);
+      config = blocks[0] || {};
+    }
+
+    function key(value) {
+      return value === undefined || value === null ? '' : String(value).trim().toLowerCase();
+    }
+
+    function idsOf(device) {
+      return [key(device.id), key(device.serialNumber)].filter(Boolean);
+    }
+
+    /** The Device Settings entry for an alarm, matched by id or serial number */
+    function overrideFor(device) {
+      const entries = Array.isArray(config.devices) ? config.devices : [];
+      const ids = idsOf(device);
+      return entries.find((entry) => entry && ids.includes(key(entry.id)));
+    }
+
+    /** The name HomeKit gets when none is set: the Kidde name, made HomeKit-safe by the plugin */
+    function defaultName(device) {
+      return device.homeKitName || device.name;
+    }
+
+    function homeKitName(device) {
+      const override = overrideFor(device);
+      const custom = override && typeof override.name === 'string' ? override.name.trim() : '';
+      return custom || defaultName(device);
+    }
+
+    function isShown(device) {
+      const override = overrideFor(device);
+      return !(override && override.hidden === true);
+    }
+
+    function locationExcluded(device) {
+      const ids = Array.isArray(config.locationIds) ? config.locationIds.map(key).filter(Boolean) : [];
+      const known = listing.locations.map((l) => key(l.id));
+      // Mirrors the plugin: a filter matching no location is ignored
+      if (ids.length === 0 || !ids.some((id) => known.includes(id))) return false;
+      return !ids.includes(key(device.locationId));
+    }
+
+    /**
+     * Write one alarm's choices into Device Settings. An alarm that is shown
+     * under its default name needs no entry, so its entry is removed; otherwise
+     * the existing entry is updated in place (keeping the id the user typed,
+     * whether device id or serial number) or a new one is added, keyed by the
+     * serial number: it stays the same if the alarm is removed from the Kidde
+     * app and added again, while the device id may not.
+     */
+    async function applyChoice(device, name, shown) {
+      const entries = Array.isArray(config.devices) ? config.devices.filter(Boolean) : [];
+      const ids = idsOf(device);
+      const trimmed = String(name ?? '').trim().slice(0, MAX_NAME_LENGTH);
+      const isDefault = trimmed === defaultName(device) || trimmed === device.name;
+      const custom = trimmed && !isDefault ? trimmed : undefined;
+
+      const next = [];
+      let placed = false;
+      for (const entry of entries) {
+        if (!ids.includes(key(entry.id))) {
+          next.push(entry);
+          continue;
+        }
+        if (placed) continue; // one entry per alarm
+        placed = true;
+        if (custom || !shown) next.push(buildEntry(entry.id, custom, shown));
+      }
+      if (!placed && (custom || !shown)) next.push(buildEntry(device.serialNumber || device.id, custom, shown));
+
+      if (next.length > 0) config.devices = next;
+      else delete config.devices;
+      blocks[0] = config;
+      await homebridge.updatePluginConfig(blocks);
+    }
+
+    function buildEntry(id, custom, shown) {
+      const entry = { id: String(id) };
+      if (custom) entry.name = custom;
+      if (!shown) entry.hidden = true;
+      return entry;
+    }
+
+    function render() {
+      const { devices, locations } = listing;
+
+      if (devices.length === 0) {
+        alarmListEl.innerHTML = '';
+      } else {
+        const rows = devices.map((device, index) => {
+          const shown = isShown(device);
+          const notes = [escapeHtml(device.description), escapeHtml(device.locationName)];
+          if (device.batteryState) notes.push('Battery: ' + escapeHtml(device.batteryState));
+          const badges = [];
+          if (device.online === false) badges.push('<span class="badge bg-warning text-dark">Offline in Kidde</span>');
+          if (locationExcluded(device)) badges.push('<span class="badge bg-secondary">Location not included</span>');
+          return `
+            <tr data-index="${index}">
+              <td>
+                <div class="fw-semibold text-body">${escapeHtml(device.name)} ${badges.join(' ')}</div>
+                <div class="text-muted small">${notes.join(' &middot; ')}</div>
+              </td>
+              <td class="small text-nowrap">
+                <div>ID <span class="kidde-id">${escapeHtml(device.id)}</span></div>
+                ${device.serialNumber ? `<div class="text-muted">S/N <span class="kidde-id">${escapeHtml(device.serialNumber)}</span></div>` : ''}
+              </td>
+              <td>
+                <input type="text" class="form-control form-control-sm kidde-name-input"
+                  maxlength="${MAX_NAME_LENGTH}" aria-label="Name in HomeKit for ${escapeHtml(device.name)}"
+                  value="${escapeHtml(homeKitName(device))}" ${shown ? '' : 'disabled'} />
+              </td>
+              <td class="text-center">
+                <div class="form-check form-switch d-inline-block mb-0">
+                  <input class="form-check-input kidde-show-toggle" type="checkbox" role="switch"
+                    aria-label="Show ${escapeHtml(device.name)} in HomeKit" ${shown ? 'checked' : ''} />
+                </div>
+              </td>
+            </tr>`;
+        }).join('');
+        alarmListEl.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm kidde-table mb-1">
+              <thead><tr><th>Alarm in Kidde</th><th>IDs</th><th>Name in HomeKit</th><th class="text-center">Show in HomeKit</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <p class="text-muted small mb-0">
+            Names can use letters, numbers, spaces and apostrophes. Your choices here are kept in
+            <strong>Device Settings</strong> below.
+          </p>`;
+        wireRows();
+      }
+
+      if (locations.length > 0) {
+        locationListEl.innerHTML = 'Locations: ' + locations
+          .map((l) => `${escapeHtml(l.name)} (ID <span class="kidde-id">${escapeHtml(l.id)}</span>)`)
+          .join(', ');
+      } else {
+        locationListEl.innerHTML = '';
+      }
+    }
+
+    function wireRows() {
+      for (const row of alarmListEl.querySelectorAll('tr[data-index]')) {
+        const device = listing.devices[Number(row.dataset.index)];
+        const nameInput = row.querySelector('.kidde-name-input');
+        const toggle = row.querySelector('.kidde-show-toggle');
+        let pending = null;
+
+        const commit = () => {
+          clearTimeout(pending);
+          pending = null;
+          applyChoice(device, nameInput.value, toggle.checked).catch((e) =>
+            homebridge.toast.error((e && e.message) || 'Could not update the settings.'));
+        };
+
+        nameInput.addEventListener('input', () => {
+          clearTimeout(pending);
+          pending = setTimeout(commit, 400);
+        });
+        nameInput.addEventListener('change', () => {
+          // An emptied name goes back to the default
+          if (!nameInput.value.trim()) nameInput.value = defaultName(device);
+          commit();
+        });
+        toggle.addEventListener('change', () => {
+          nameInput.disabled = !toggle.checked;
+          commit();
+        });
+      }
+    }
+
+    /** Re-render, unless the user is typing in the list (that would steal focus) */
+    function renderUnlessEditing() {
+      if (alarmListEl.contains(document.activeElement)) return;
+      render();
+    }
+
+    async function loadCached() {
+      try {
+        listing = await homebridge.request('/devices');
+      } catch (e) {
+        listing = { devices: [], locations: [], updatedAt: 0 };
+      }
+      render();
+      if (listing.devices.length > 0) {
+        const when = listing.updatedAt ? ' (as of ' + new Date(listing.updatedAt).toLocaleString() + ')' : '';
+        setStatus(`${listing.devices.length} alarm(s) found by the plugin${when}.`, 'muted');
+      } else if (config.email && config.password) {
+        setStatus('The plugin has not reported any alarms yet. Use Sign In & Find Alarms to check now.', 'muted');
+      } else {
+        setStatus('Not set up yet: enter your Kidde email and password below.', 'warning');
+      }
+    }
+
+    async function scan() {
+      if (!config.email || !config.password) {
+        homebridge.toast.error('Enter your Kidde email and password in the form below first.');
+        return;
+      }
+      homebridge.showSpinner();
+      setStatus('Signing in to Kidde...', 'muted');
+      try {
+        const result = await homebridge.request('/scan', { email: config.email, password: config.password });
+        listing = { devices: result.devices || [], locations: result.locations || [], updatedAt: Date.now() };
+        render();
+
+        const count = listing.devices.length;
+        const parts = [`Signed in. Found ${count} smoke alarm${count === 1 ? '' : 's'}.`];
+        if (result.otherDevices > 0) {
+          parts.push(`${result.otherDevices} other Kidde device(s) are not smoke alarms and are not added.`);
+        }
+        if (result.failedLocations && result.failedLocations.length > 0) {
+          parts.push('Could not read: ' + result.failedLocations.join('; ') + '.');
+        }
+        parts.push('Click Save, then restart Homebridge (or the child bridge) to apply.');
+        setStatus(parts.join(' '), result.failedLocations && result.failedLocations.length ? 'warning' : 'success');
+        homebridge.toast.success('Kidde sign-in worked.');
+      } catch (e) {
+        const message = (e && e.message) || 'Sign-in failed.';
+        setStatus(message, 'danger');
+        homebridge.toast.error(message);
+      } finally {
+        homebridge.hideSpinner();
+      }
+    }
+
+    document.getElementById('scanButton').addEventListener('click', scan);
+    document.getElementById('refreshButton').addEventListener('click', loadCached);
+
+    // Keep the list in step with edits made in the form below
+    homebridge.addEventListener('configChanged', (event) => {
+      setBlocks(event.data);
+      renderUnlessEditing();
+    });
+
+    setBlocks(await homebridge.getPluginConfig());
+    // First install: give the form a block to edit, with the platform set
+    if (blocks.length === 0) {
+      setBlocks([{ platform: PLATFORM, name: 'Kidde Smoke Detectors' }]);
+      await homebridge.updatePluginConfig(blocks);
+    }
+    homebridge.showSchemaForm();
+    await loadCached();
+  })();
+</script>

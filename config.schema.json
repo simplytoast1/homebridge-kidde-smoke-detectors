@@ -1,0 +1,167 @@
+{
+  "pluginAlias": "KiddeSmokeDetectors",
+  "pluginType": "platform",
+  "singular": true,
+  "customUi": true,
+  "customUiPath": "./dist/homebridge-ui",
+  "headerDisplay": "Adds your Kidde HomeSafe Wi-Fi smoke alarms (smoke and smoke + CO models) to HomeKit. Sign in with the same email and password you use in the Kidde app. See the [README](https://github.com/simplytoast1/homebridge-kidde-smoke-detectors#readme) for details.",
+  "footerDisplay": "HomeKit alerts from this plugin come from Kidde's cloud and arrive within one polling interval. They supplement the alarm's own siren and the Kidde app, they do not replace them.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Kidde Smoke Detectors",
+        "description": "Shown in the Homebridge log."
+      },
+      "email": {
+        "title": "Kidde Email",
+        "type": "string",
+        "format": "email",
+        "placeholder": "you@example.com",
+        "description": "The email address you use to sign in to the Kidde app."
+      },
+      "password": {
+        "title": "Kidde Password",
+        "type": "string",
+        "description": "Your Kidde app password. It is sent only to Kidde, and is needed so the plugin can sign in again on its own when Kidde ends the session."
+      },
+      "hushSwitch": {
+        "title": "Hush switch",
+        "type": "boolean",
+        "default": false,
+        "description": "Adds a momentary switch to each alarm that silences it, the same as Hush in the Kidde app. The alarm decides whether it can be hushed: it refuses while smoke is too dense."
+      },
+      "testSwitch": {
+        "title": "Test switch",
+        "type": "boolean",
+        "default": false,
+        "description": "Adds a momentary switch to each alarm that starts its self-test, the same as Test in the Kidde app. The test sounds the siren, and interconnected alarms may sound with it."
+      },
+      "identifyLocate": {
+        "title": "Locate alarm on Identify",
+        "type": "boolean",
+        "default": true,
+        "description": "When you use Identify Accessory in the Home app, the alarm beeps and flashes so you can find it, the same as Locate in the Kidde app."
+      },
+      "devices": {
+        "title": "Device Settings",
+        "type": "array",
+        "items": {
+          "title": "Alarm",
+          "type": "object",
+          "properties": {
+            "id": {
+              "title": "Device ID or Serial Number",
+              "type": "string",
+              "placeholder": "123456",
+              "description": "The alarm's serial number (best, because it stays the same if the alarm is removed from the Kidde app and added again) or its Kidde device ID. Both are listed under Your Smoke Alarms at the top of this page."
+            },
+            "name": {
+              "title": "Name in HomeKit",
+              "type": "string",
+              "placeholder": "Name from the Kidde app",
+              "description": "Leave empty to use the name from the Kidde app. Letters, numbers, spaces and apostrophes."
+            },
+            "hidden": {
+              "title": "Hide from HomeKit",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": ["id"]
+        }
+      },
+      "pollingInterval": {
+        "title": "Polling Interval (seconds)",
+        "type": "integer",
+        "default": 15,
+        "minimum": 10,
+        "maximum": 300,
+        "description": "How often to ask Kidde's cloud for alarm states. Kidde has no push connection, so this is the most an alert can lag behind the Kidde app."
+      },
+      "lowBatteryThreshold": {
+        "title": "Low Battery Threshold (%)",
+        "type": "integer",
+        "default": 20,
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Only for alarms that report a battery percentage. An alarm that reports its battery as low always shows the warning."
+      },
+      "locationIds": {
+        "title": "Locations",
+        "type": "array",
+        "items": {
+          "title": "Location ID",
+          "type": "string"
+        },
+        "description": "Only include alarms from these Kidde locations (homes). Leave empty to include every location. Location IDs are listed under Your Smoke Alarms at the top of this page."
+      },
+      "debug": {
+        "title": "Debug logging",
+        "type": "boolean",
+        "default": false,
+        "description": "Writes the plugin's detailed messages to the Homebridge log. Turn this on before reporting a problem."
+      }
+    },
+    "required": ["email", "password"]
+  },
+  "layout": [
+    {
+      "type": "fieldset",
+      "title": "Kidde Account",
+      "items": [
+        "email",
+        {
+          "key": "password",
+          "type": "password"
+        }
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "HomeKit Controls",
+      "description": "Each alarm always appears as a Smoke Sensor (plus a Carbon Monoxide Sensor on smoke + CO models) with battery and fault status. These add optional controls.",
+      "expandable": true,
+      "expanded": false,
+      "items": ["hushSwitch", "testSwitch", "identifyLocate"]
+    },
+    {
+      "type": "fieldset",
+      "title": "Device Settings",
+      "description": "Rename an alarm or hide it from HomeKit. The Show in HomeKit switches and names at the top of this page fill this in for you. Alarms not listed here use their Kidde app name and are shown.",
+      "expandable": true,
+      "expanded": false,
+      "items": [
+        {
+          "key": "devices",
+          "type": "array",
+          "notitle": true,
+          "orderable": false,
+          "buttonText": "Add Alarm",
+          "items": ["devices[].id", "devices[].name", "devices[].hidden"]
+        }
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "expanded": false,
+      "items": [
+        "name",
+        "pollingInterval",
+        "lowBatteryThreshold",
+        {
+          "key": "locationIds",
+          "type": "array",
+          "orderable": false,
+          "buttonText": "Add Location",
+          "items": ["locationIds[]"]
+        },
+        "debug"
+      ]
+    }
+  ]
+}

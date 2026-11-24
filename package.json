@@ -1,0 +1,53 @@
+{
+  "name": "homebridge-kidde-smoke-detectors",
+  "displayName": "Kidde Smoke Detectors",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for Kidde HomeSafe Wi-Fi smart smoke alarms (smoke and smoke + CO models)",
+  "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist/",
+    "config.schema.json",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/homebridge-ui/public dist/homebridge-ui/public",
+    "watch": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 --test-timeout=30000 test/*.test.mjs",
+    "prepublishOnly": "npm run typecheck && npm test",
+    "probe": "npm run build && node scripts/probe-kidde.mjs"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "homebridge",
+    "kidde",
+    "homesafe",
+    "smoke-detector",
+    "smoke-alarm",
+    "carbon-monoxide",
+    "homekit"
+  ],
+  "author": "simplytoast1",
+  "license": "MIT",
+  "homepage": "https://github.com/simplytoast1/homebridge-kidde-smoke-detectors#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplytoast1/homebridge-kidde-smoke-detectors.git"
+  },
+  "bugs": {
+    "url": "https://github.com/simplytoast1/homebridge-kidde-smoke-detectors/issues"
+  },
+  "engines": {
+    "node": "^22.10.0 || ^24.0.0 || ^26.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
+  },
+  "dependencies": {
+    "@homebridge/plugin-ui-utils": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "homebridge": "^2.5.0",
+    "typescript": "^5.9.3"
+  }
+}
