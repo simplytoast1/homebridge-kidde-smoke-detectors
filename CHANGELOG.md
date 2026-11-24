@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-11-24)
+
+- Declares that the plugin's accessories are HomeKit (HAP) accessories, with the `supports-hap` keyword that Homebridge verification now requires. Nothing else changes.
+
 ## 1.0.0 (2026-11-24)
 
 First release.

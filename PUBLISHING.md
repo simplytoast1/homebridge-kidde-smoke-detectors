@@ -64,6 +64,7 @@ How this plugin meets each requirement (current as of the 2026-11-01 list):
 | Runs on Node 22, 24 and 26 | `engines.node` is `^22.10.0 \|\| ^24.0.0 \|\| ^26.0.0`; CI tests all three |
 | Installs, and does not start unless configured | Without an email and password it logs "Not set up yet" and makes no network requests (covered by a test) |
 | No post-install scripts | `package.json` has none |
+| Declares its transports | `keywords` include `supports-hap` (HomeKit accessories). Not `supports-matter`: the plugin creates no Matter accessories itself, and Homebridge can bridge its accessories to Matter anyway |
 | No TTY or special startup parameters | Configured entirely in the Homebridge UI |
 | Implements the Plugin Settings GUI | `config.schema.json` (standard form) with a custom panel above it |
 | No analytics or tracking | Only `api.homesafe.kidde.com` is contacted |

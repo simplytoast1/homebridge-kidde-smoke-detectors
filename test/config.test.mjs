@@ -91,3 +91,18 @@ test('hand-edited config values are normalized instead of crashing the plugin', 
   assert.equal(resolveOptions({ platform: PLATFORM_NAME, pollingInterval: 9999 }).pollingIntervalMs, MAX_POLLING_INTERVAL_SECONDS * 1000)
   assert.equal(resolveOptions({ platform: PLATFORM_NAME, pollingInterval: 'abc' }).pollingIntervalMs, DEFAULT_POLLING_INTERVAL_SECONDS * 1000)
 })
+
+test('package.json passes the checks Homebridge verification runs automatically', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.ok(pkg.keywords.includes('homebridge-plugin'), 'listed in the Homebridge UI')
+  assert.ok(pkg.keywords.includes('supports-hap'), 'declares HomeKit (HAP) as its transport')
+  assert.ok(!pkg.keywords.includes('supports-matter'), 'creates no Matter accessories of its own')
+  for (const script of ['preinstall', 'install', 'postinstall']) {
+    assert.equal(pkg.scripts?.[script], undefined, `no ${script} script`)
+  }
+  assert.ok(pkg.homepage && pkg.bugs?.url, 'homepage and issue tracker links')
+  for (const major of ['22', '24', '26']) assert.match(pkg.engines.node, new RegExp(`\\^${major}\\.`))
+  assert.equal(pkg.dependencies?.homebridge, undefined, 'homebridge is never a runtime dependency')
+  assert.equal(pkg.peerDependencies?.homebridge, undefined)
+})
+
