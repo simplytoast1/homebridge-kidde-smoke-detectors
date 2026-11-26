@@ -1,4 +1,11 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/simplytoast1/homebridge-kidde-smoke-detectors/main/assets/icon.png" width="128" height="128" alt="Plugin icon: a white smoke alarm on a red background">
+</p>
+
 # homebridge-kidde-smoke-detectors
+
+[![Verified by Homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=flat&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/plugins/wiki/Verified-Plugins)
+[![npm version](https://img.shields.io/npm/v/homebridge-kidde-smoke-detectors)](https://www.npmjs.com/package/homebridge-kidde-smoke-detectors)
 
 A [Homebridge](https://homebridge.io) plugin for **Kidde HomeSafe Wi-Fi smart smoke alarms**: the smoke and smoke + CO models you set up in the **Kidde** app. Each alarm appears in HomeKit as a Smoke Sensor (plus a Carbon Monoxide Sensor on smoke + CO models), with battery, fault and end-of-life status, so the Home app can alert you and run automations when an alarm goes off.
 

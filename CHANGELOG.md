@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 (2026-11-26)
+
+- The README shows the plugin's icon, its Verified by Homebridge badge and the current npm version. Nothing changes in how the plugin works.
+
 ## 1.0.1 (2026-11-24)
 
 - Declares that the plugin's accessories are HomeKit (HAP) accessories, with the `supports-hap` keyword that Homebridge verification now requires. Nothing else changes.

@@ -1,7 +1,7 @@
 {
   "name": "homebridge-kidde-smoke-detectors",
   "displayName": "Kidde Smoke Detectors",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Homebridge plugin for Kidde HomeSafe Wi-Fi smart smoke alarms (smoke and smoke + CO models)",
   "type": "module",
   "main": "dist/index.js",
